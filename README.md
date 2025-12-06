@@ -54,3 +54,77 @@ A batch version of this tool is in development.
 ---
 
 # 📁 Project Structure
+```
+bluebyte-audio-tools/
+│
+├── load_audio.py
+├── normalise_single.py
+├── README.md
+└── .gitignore
+```
+
+The `venv/` folder and audio test files are intentionally excluded using `.gitignore`.
+
+---
+
+# 🛠️ Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/blue-byte-dev/bluebyte-audio-tools.git
+cd bluebyte-audio-tools
+```
+
+Create a virtual environment:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
+pip install numpy librosa soundfile matplotlib
+```
+
+---
+
+# ▶️ Usage
+
+### Run the audio loader:
+```bash
+python3 load_audio.py
+```
+
+### Run the normalization tool:
+```bash
+python3 normalise_single.py
+```
+
+Make sure a test audio file (e.g., `test.wav`) exists in the folder.
+
+---
+
+# 📅 Roadmap (12-Week Development Plan)
+
+- ✔ Basic audio loading tool (`load_audio.py`)
+- ✔ Single-file peak normalizer (`normalise_single.py`)
+- 🔜 Batch normalization (multi-file processing)
+- 🔜 Loudness/LUFS-target normalization tool
+- 🔜 Batch format converter (WAV ↔ MP3 ↔ FLAC)
+- 🔜 Automated podcast cleanup (noise reduction, leveling)
+- 🔜 Spectral analysis & plotting utilities
+- 🔜 CLI interface for full audio pipelines
+- 🔜 GUI-based version (Tkinter or Electron-Python)
+
+This repository will expand weekly with new tools.
+
+---
+
+# 👤 Author  
+**Blue Byte**  
+Audio Programmer • DSP Learner • Music Producer  
+
+More tools and features coming soon.

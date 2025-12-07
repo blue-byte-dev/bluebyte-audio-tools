@@ -1,73 +1,83 @@
 # 🎧 BlueByte Audio Tools  
-High-quality Python tools for audio processing, normalization, analysis, and DSP workflows.
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg)
+![Status](https://img.shields.io/badge/Status-Active-green.svg)
+A growing collection of Python-based audio utilities for loading, inspecting, normalizing, and processing sound files.  
+Designed for audio engineers, music producers, game developers, podcasters, and ML dataset creators.
 
-This repository contains lightweight, practical audio utilities built in Python using:
+---
+
+## 🚀 Overview
+This repository contains lightweight, robust DSP tools built using:
+
 - **librosa**
-- **soundfile**
 - **numpy**
+- **soundfile**
 - **matplotlib**
 
-These tools are designed for:
-- Audio engineers  
-- Music producers  
-- Podcasters  
-- Game audio designers  
-- Machine learning dataset creators  
-
-More tools will be added continuously as part of a 12-week development roadmap.
+Each script includes strict error handling, clean output formatting, and practical utility for real-world workflows.  
+New tools are added weekly as part of a 12‑week development plan.
 
 ---
 
-# 🚀 Tools Included
+# 📂 Tools Included
 
-## 1. `load_audio.py`
-A simple but essential utility that:
-- Loads audio files into a NumPy array  
-- Prints sample rate & duration  
-- Displays a waveform using matplotlib  
+## 🔹 `load_audio.py`
+A robust audio inspection and waveform viewer.
 
-**Features**
-- Supports WAV/MP3 and more  
-- Optional mono conversion  
-- Perfect for debugging or quick inspection  
+### **Features**
+- Verifies file existence
+- Validates extension (`.wav`, `.flac`, `.ogg`, `.aiff`, `.aif`)
+- Handles loading errors gracefully
+- Prints:
+  - File name  
+  - Sample rate  
+  - Duration  
+  - Number of samples  
+- Displays waveform using matplotlib  
+
+### **Usage**
+```bash
+python3 load_audio.py
+```
+
+**Example Output**
+```
+========================================
+ Blue Byte Audio File Info 
+========================================
+File: test.wav
+Sample Rate: 48000 Hz
+Duration: 26.67 seconds
+Samples: 1280000
+========================================
+```
 
 ---
 
-## 2. `normalise_single.py`  
-A peak normalization tool that:
-- Loads an audio file  
-- Detects the maximum absolute peak  
-- Normalizes audio to **90% of full scale** (≈ –1 dBFS headroom)  
-- Saves the result as a clean, safe WAV file
+## 🔹 `normalise_single.py`
+A clean single‑file peak normalization utility.
 
-**Features**
-- Prevents clipping  
-- Good for bulk processing pipelines  
-- Ideal pre-processing for:
+### **Features**
+- Preserves original sample rate
+- Detects max amplitude
+- Normalizes audio to 90% of full scale (≈ −1 dBFS headroom)
+- Prevents clipping
+- Outputs a normalized WAV file  
+- Useful for:
   - Podcasts  
-  - Voiceovers  
-  - Sample packs  
-  - ML datasets  
+  - Dialogue cleanup  
+  - Sample‑pack prep  
+  - Machine‑learning datasets  
 
-A batch version of this tool is in development.
+### **Usage**
+```bash
+python3 normalise_single.py
+```
 
 ---
 
-# 📁 Project Structure
-```
-bluebyte-audio-tools/
-│
-├── load_audio.py
-├── normalise_single.py
-├── README.md
-└── .gitignore
-```
-
-The `venv/` folder and audio test files are intentionally excluded using `.gitignore`.
-
----
-
-# 🛠️ Installation
+# 🛠 Installation
 
 Clone the repository:
 
@@ -76,55 +86,72 @@ git clone https://github.com/blue-byte-dev/bluebyte-audio-tools.git
 cd bluebyte-audio-tools
 ```
 
-Create a virtual environment:
+Create a virtual environment (macOS/Linux):
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 ```
 
+Windows:
+
+```bash
+python -m venv venv
+venv\Scripts\activate
+```
+
 Install dependencies:
 
 ```bash
-pip install numpy librosa soundfile matplotlib
+pip install librosa soundfile matplotlib numpy
 ```
 
 ---
 
-# ▶️ Usage
+# ▶️ Running the Tools
 
-### Run the audio loader:
+### Load and visualize audio:
 ```bash
 python3 load_audio.py
 ```
 
-### Run the normalization tool:
+### Normalize a file:
 ```bash
 python3 normalise_single.py
 ```
 
-Make sure a test audio file (e.g., `test.wav`) exists in the folder.
+Ensure the input file (`test.wav` or another file of your choosing) exists in the folder.
 
 ---
 
-# 📅 Roadmap (12-Week Development Plan)
+# 📸 Screenshots
 
-- ✔ Basic audio loading tool (`load_audio.py`)
-- ✔ Single-file peak normalizer (`normalise_single.py`)
-- 🔜 Batch normalization (multi-file processing)
-- 🔜 Loudness/LUFS-target normalization tool
-- 🔜 Batch format converter (WAV ↔ MP3 ↔ FLAC)
-- 🔜 Automated podcast cleanup (noise reduction, leveling)
-- 🔜 Spectral analysis & plotting utilities
-- 🔜 CLI interface for full audio pipelines
-- 🔜 GUI-based version (Tkinter or Electron-Python)
+### Waveform Output Example
+![Waveform Example](https://via.placeholder.com/900x300.png?text=Waveform+Preview)
 
-This repository will expand weekly with new tools.
+### Terminal Output Example
+![Terminal Output](https://via.placeholder.com/900x200.png?text=Terminal+Output+Preview)
+
+(These will be replaced with real screenshots in the future.)
+
+# 📅 Roadmap (12‑Week Development Plan)
+
+- ✔ Audio loader (`load_audio.py`)
+- ✔ Single‑file peak normalizer (`normalise_single.py`)
+- 🔜 Batch normalization
+- 🔜 Batch format conversion (WAV ↔ MP3 ↔ FLAC)
+- 🔜 LUFS loudness tools
+- 🔜 Noise‑reduction utility
+- 🔜 Spectral analysis toolkit
+- 🔜 CLI pipeline interface
+- 🔜 GUI version (Tkinter or Electron‑Python)
+
+This repository will expand weekly as part of an active development schedule.
 
 ---
 
 # 👤 Author  
 **Blue Byte**  
-Audio Programmer • DSP Learner • Music Producer  
+Audio Programmer • DSP Student • Electronic Music Producer
 
 More tools and features coming soon.

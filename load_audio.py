@@ -1,3 +1,9 @@
+# -------------------------------------------------------------
+# BlueByte Audio Tools - Audio Loader & Waveform Viewer
+# Loads an audio file, validates type, displays file info,
+# and plots the waveform using matplotlib.
+# Includes: safety checks, extension validation, error handling
+# -------------------------------------------------------------
 import librosa
 import matplotlib.pyplot as plt
 import os

@@ -3,23 +3,23 @@
 ![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Active-green.svg)
 
-A growing collection of Python-based audio utilities for loading, inspecting, normalizing, scanning, and processing sound files.  
-Designed for audio engineers, music producers, game developers, podcasters, and ML dataset creators.
+A growing collection of Python‑based audio utilities for loading, analyzing, normalizing, scanning, and batch‑processing sound files.  
+Designed for audio engineers, music producers, sound designers, game developers, and machine‑learning dataset creators.
 
-This repository is being expanded weekly as part of a structured 12‑week development plan.
+This repository evolves weekly as part of a structured 12‑week development plan.
 
 ---
 
 ## 🚀 Overview
 
-This toolkit provides lightweight, robust audio-processing scripts built using:
+BlueByte Audio Tools provides lightweight, robust, and reliable audio-processing scripts powered by:
 
-- **librosa**
-- **numpy**
-- **soundfile**
+- **librosa**  
+- **numpy**  
+- **soundfile**  
 - **matplotlib**
 
-Each tool includes strict error handling, clean terminal output, and reliable performance.
+Every script includes input validation, error handling, clean terminal output, and safe‑file operations.
 
 ---
 
@@ -28,18 +28,18 @@ Each tool includes strict error handling, clean terminal output, and reliable pe
 ---
 
 ## 🔹 `load_audio.py`
-A robust audio inspection and waveform viewer.
+A waveform viewer and audio inspection tool.
 
 ### **Features**
-- Verifies file existence  
-- Validates extension (`.wav`, `.flac`, `.ogg`, `.aiff`, `.aif`)  
-- Handles loading errors gracefully  
-- Prints:  
+- Validates file existence  
+- Checks extension (`.wav`, `.flac`, `.ogg`, `.aiff`, `.aif`)  
+- Loads audio with error handling  
+- Displays:
   - File name  
   - Sample rate  
   - Duration  
   - Number of samples  
-- Displays waveform using matplotlib  
+- Renders waveform via matplotlib  
 
 ### **Usage**
 ```bash
@@ -49,15 +49,15 @@ python3 load_audio.py
 ---
 
 ## 🔹 `normalise_single.py`
-A clean single‑file peak-normalization tool.
+A safe single‑file peak‑normalization utility.
 
 ### **Features**
 - Validates file and extension  
 - Loads audio safely  
-- Computes original peak  
-- Normalizes to 90% of full-scale (~ −1 dBFS)  
-- Saves output using a safe prefixed filename  
-- Prints a clean, formatted summary  
+- Computes original peak amplitude  
+- Normalizes to 90% of full‑scale (~ −1 dBFS headroom)  
+- Outputs a cleanly prefixed file  
+- Prints a detailed processing summary  
 
 ### **Usage**
 ```bash
@@ -67,21 +67,40 @@ python3 normalise_single.py
 ---
 
 ## 🔹 `folder_scanner.py`
-A utility script that scans a folder and lists all supported audio files.
+A file‑system helper that identifies all supported audio files in a folder.
 
 ### **Features**
-- Reads the contents of a directory  
+- Reads directory contents  
 - Filters valid audio formats (`.wav`, `.flac`, `.ogg`, `.aiff`, `.aif`)  
-- Skips folders and unsupported files  
-- Prints a clean, numbered list of matched audio files  
-- Forms the backbone for future batch-processing tools  
+- Skips folders and unsupported entries  
+- Prints a neatly ordered, numbered file list  
+- Provides the foundation for all batch operations  
 
 ### **Usage**
 ```bash
 python3 folder_scanner.py
 ```
 Scans the current directory by default.  
-Modify `target_folder = "."` inside the script to scan a different folder.
+Modify `target_folder = "."` inside the script to scan other locations.
+
+---
+
+## 🔹 `batch_normalise.py`
+A batch peak‑normalisation processor for multiple audio files.
+
+### **Features**
+- Scans a directory for valid audio files  
+- Loads each file safely with error handling  
+- Skips silent files  
+- Normalizes all files to 90% of full‑scale (~ −1 dBFS)  
+- Saves new files using a safe `normalized_` prefix  
+- Outputs per‑file results and a final batch report  
+
+### **Usage**
+```bash
+python3 batch_normalise.py
+```
+Processes all supported audio files in the current directory.
 
 ---
 
@@ -123,7 +142,7 @@ pip install numpy librosa matplotlib soundfile
 python3 load_audio.py
 ```
 
-### Normalize a file:
+### Normalize a single file:
 ```bash
 python3 normalise_single.py
 ```
@@ -133,24 +152,29 @@ python3 normalise_single.py
 python3 folder_scanner.py
 ```
 
-Ensure the input files exist in the folder you are scanning.
+### Batch-normalize all files:
+```bash
+python3 batch_normalise.py
+```
+
+Ensure the input files exist in the directory you are scanning or processing.
 
 ---
 
 # 📅 Roadmap (12‑Week Development Plan)
 
-- ✔ Audio loader (`load_audio.py`)
-- ✔ Single‑file peak normalizer (`normalise_single.py`)
-- ✔ Folder scanner (batch foundation) (`folder_scanner.py`)
-- 🔜 Batch normalization  
+- ✔ Audio loader (`load_audio.py`)  
+- ✔ Single‑file peak normalizer (`normalise_single.py`)  
+- ✔ Folder scanner (batch foundation) (`folder_scanner.py`)  
+- ✔ Batch normaliser v1 (`batch_normalise.py`)  
 - 🔜 Batch format conversion (WAV ↔ MP3 ↔ FLAC)  
 - 🔜 LUFS loudness analyzer  
 - 🔜 Noise‑reduction utility  
 - 🔜 Spectral analysis toolkit  
-- 🔜 CLI pipeline interface  
-- 🔜 GUI version (Tkinter or Electron‑Python)
+- 🔜 Modular CLI pipeline interface  
+- 🔜 GUI desktop version (Tkinter or Electron‑Python)
 
-This repository will expand weekly as part of an active development schedule.
+This repository expands every week with new tools and improvements.
 
 ---
 
@@ -158,4 +182,4 @@ This repository will expand weekly as part of an active development schedule.
 **Blue Byte**  
 Audio Programmer • DSP Developer • Electronic Music Producer  
 
-More tools and features coming soon.
+More tools, DSP utilities, and batch‑processing modules coming soon.

@@ -4,14 +4,10 @@
 # Includes: safety checks, extension validation, error handling
 # -------------------------------------------------------------
 
-import librosa
-import soundfile as sf
-import numpy as np
 import os
+from bb_audio import ALLOWED_EXTENSIONS, load_audio_mono, peak_normalise, save_audio
 
 file_path = "test.wav"           # Input file
-allowed_extensions = {".wav", ".flac", ".ogg",
-                      ".aiff", ".aif"}  # Allowed audio file extensions
 
 # --- SAFETY CHECK 1: Does file exist? ---
 if not os.path.exists(file_path):
@@ -23,37 +19,31 @@ _, ext = os.path.splitext(file_path)
 ext = ext.lower()
 
 # --- SAFETY CHECK 2: Is file type supported? ---
-if ext not in allowed_extensions:
+if ext not in ALLOWED_EXTENSIONS:
     print(f"Error: File '{file_path}' has unsupported type '{ext}'.")
-    print("Supported file types are:", ", ".join(sorted(allowed_extensions)))
+    print("Supported file types are:", ", ".join(sorted(ALLOWED_EXTENSIONS)))
     exit()
 
 # --- SAFETY CHECK 3: Attempt to load audio safely ---
 try:
-    audio, sr = librosa.load(file_path, sr=None, mono=True)
+    audio, sr = load_audio_mono(file_path)
 except Exception as e:
     print("Error loading audio file:", e)
     exit()
 
-# Compute original peak
-peak_before = np.max(np.abs(audio))
-
-# Avoid division by zero
-if peak_before == 0:
-    print("Error: Audio file is silent. Cannot normalize")
+# Peak-normalise to 90% of full-scale (≈ -1 dBFS headroom)
+try:
+    normalized, peak_before, peak_after = peak_normalise(
+        audio, target_peak=0.9)
+except Exception as e:
+    print("Error:", e)
     exit()
-
-# Normalize audio to 90% of full-scale (≈ -1 dBFS headroom)
-normalized = audio / peak_before * 0.9
-
-# Compute new peak
-peak_after = np.max(np.abs(normalized))
 
 # Output path
 output_path = "normalized_" + os.path.basename(file_path)
 
 # Save result
-sf.write(output_path, normalized, sr)
+save_audio(output_path, normalized, sr)
 
 print("=" * 40)
 print(" Blue Byte Normalization Tool ")

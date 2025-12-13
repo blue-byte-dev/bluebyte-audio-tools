@@ -21,9 +21,26 @@ BlueByte Audio Tools provides lightweight, robust, and reliable audio-processing
 
 Every script includes input validation, error handling, clean terminal output, and safe‑file operations.
 
+As of the current development stage, all tools share a common backend engine (`bb_audio.py`) that centralizes audio loading, validation, normalization logic, and file handling. This ensures consistency, easier maintenance, and future readiness for CLI and GUI interfaces.
+
 ---
 
 # 📂 Tools Included
+
+---
+
+## 🔹 `bb_audio.py` (Core Backend Engine)
+A reusable internal module that powers all BlueByte Audio Tools.
+
+### **Responsibilities**
+- Defines supported audio formats in one place  
+- Scans folders and returns valid audio file paths  
+- Loads audio safely while preserving sample rate  
+- Performs peak normalization with safety checks  
+- Handles audio file writing with robust error reporting  
+
+This module is not intended to be run directly.  
+All user-facing scripts import and rely on this shared engine.
 
 ---
 
@@ -167,6 +184,7 @@ Ensure the input files exist in the directory you are scanning or processing.
 - ✔ Single‑file peak normalizer (`normalise_single.py`)  
 - ✔ Folder scanner (batch foundation) (`folder_scanner.py`)  
 - ✔ Batch normaliser v1 (`batch_normalise.py`)  
+- ✔ Shared backend engine refactor (`bb_audio.py`)
 - 🔜 Batch format conversion (WAV ↔ MP3 ↔ FLAC)  
 - 🔜 LUFS loudness analyzer  
 - 🔜 Noise‑reduction utility  

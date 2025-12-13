@@ -1,4 +1,5 @@
 import os
+from bb_audio import list_audio_files
 
 # -------------------------------------------------------------
 # BlueByte Audio Tools - Folder Scanner
@@ -9,38 +10,15 @@ import os
 # Folder to scan (Current folder by default)
 target_folder = "."
 
-# Supported audio file extensions
-allowed_extensions = {".wav", ".flac", ".ogg", ".aiff", ".aif"}
-
-# --- STEP 1: List all entries in the target folder ---
+# --- STEP 1: Find supported audio files in the target folder ---
 try:
-    entries = os.listdir(target_folder)
+    audio_files = list_audio_files(target_folder)
 except Exception as e:
     print(f"Error reading folder '{target_folder}':", e)
     exit()
 
 print(f"Scanning folder: {os.path.abspath(target_folder)}")
-print(f"Found {len(entries)} entries (files and folders total).")
-
-# --- STEP 2: Filter only supported audio files ---
-audio_files = []
-
-for name in entries:
-    full_path = os.path.join(target_folder, name)
-
-    # Skip if it's a folder, not a file
-    if not os.path.isfile(full_path):
-        continue
-
-    # Extract and normalize extension
-    _, ext = os.path.splitext(name)
-    ext = ext.lower()
-
-    # Skip unsupported extensions
-    if ext not in allowed_extensions:
-        continue
-
-    audio_files.append(full_path)
+print(f"Found {len(audio_files)} supported audio file(s).")
 
 print()
 print("=" * 40)
@@ -51,7 +29,7 @@ if not audio_files:
     print("No supported audio files found.")
 else:
     print(f"Found {len(audio_files)} supported audio file(s):")
-    for idx, path in enumerate(sorted(audio_files), start=1):
+    for idx, path in enumerate(audio_files, start=1):
         print(f"{idx: 2d}. {os.path.basename(path)}")
 
 print("=" * 40)

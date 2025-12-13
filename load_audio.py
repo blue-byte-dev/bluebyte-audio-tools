@@ -4,14 +4,12 @@
 # and plots the waveform using matplotlib.
 # Includes: safety checks, extension validation, error handling
 # -------------------------------------------------------------
-import librosa
-import matplotlib.pyplot as plt
 import os
+import matplotlib.pyplot as plt
+from bb_audio import ALLOWED_EXTENSIONS, load_audio_mono
 
 # Path to your audio file in the same folder as this script
 file_path = "test.wav"
-# Allowed audio file extensions
-allowed_extensions = {".wav", ".flac", ".ogg", ".aiff", ".aif"}
 
 # --- SAFETY CHECK 1: Does file exist? ---
 if not os.path.exists(file_path):
@@ -21,14 +19,14 @@ if not os.path.exists(file_path):
 # --- SAFETY CHECK 2: Is file type supported? ---
 _, ext = os.path.splitext(file_path)
 ext = ext.lower()
-if ext not in allowed_extensions:
+if ext not in ALLOWED_EXTENSIONS:
     print(f"Error: File: '{file_path}' has unsupported type '{ext}'.")
-    print("Supported file types are:", ", ".join(sorted(allowed_extensions)))
+    print("Supported file types are:", ", ".join(sorted(ALLOWED_EXTENSIONS)))
     exit()
 
 # --- SAFETY CHECK 3: Attempt to load audio safely ---
 try:
-    audio, sr = librosa.load(file_path, sr=None, mono=True)
+    audio, sr = load_audio_mono(file_path)
 except Exception as e:
     print("Error loading audio file:", e)
     exit()

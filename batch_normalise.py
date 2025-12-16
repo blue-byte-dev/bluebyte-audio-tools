@@ -1,3 +1,4 @@
+import argparse
 import os
 from bb_audio import list_audio_files, load_audio_mono, peak_normalise, save_audio
 
@@ -8,9 +9,44 @@ from bb_audio import list_audio_files, load_audio_mono, peak_normalise, save_aud
 # to 90% of full-scale (~ -1 dBFS), saving new versions.
 # -------------------------------------------------------------
 
-# Folder to scan (current working directory by default)
-target_folder = "."
+# --- CLI argument parsing ---
+parser = argparse.ArgumentParser(
+    description="Batch peak-normalise audio files in a folder.")
 
+parser.add_argument("--folder",
+                    type=str,
+                    default=".",
+                    help="Target folder containing audio files to normalise. Defaults to current directory.")
+
+parser.add_argument("--target_peak",
+                    type=float,
+                    default=0.9,
+                    help="Target peak level for normalisation (0.0 to 1.0). Defaults to 0.9.")
+
+parser.add_argument("--output_folder",
+                    type=str,
+                    default="",
+                    help="Optional output folder to save normalised files. Defaults to the input folder.")
+
+args = parser.parse_args()
+
+# Folder to scan (current working directory by default)
+target_folder = args.folder
+target_peak = args.target_peak
+
+# Output folder (optional). If relative, treat it as inside target folder.
+output_folder_arg = args.output_folder.strip()
+
+if output_folder_arg:
+    output_folder = output_folder_arg if os.path.isabs(
+        output_folder_arg) else os.path.join(target_folder, output_folder_arg)
+    try:
+        os.makedirs(output_folder, exist_ok=True)
+    except Exception as e:
+        print("Error creating output folder:", e)
+        exit()
+else:
+    output_folder = target_folder
 # --- STEP 1: Find supported audio files in the target folder ---
 try:
     audio_files = list_audio_files(target_folder)
@@ -20,6 +56,7 @@ except Exception as e:
 
 print(f"Scanning folder: {os.path.abspath(target_folder)}")
 print(f"Found {len(audio_files)} supported audio file(s).")
+print(f"Output folder: {os.path.abspath(output_folder)}")
 
 if not audio_files:
     print("No supported audio files found. Nothing to normalise.")
@@ -32,21 +69,32 @@ print("=" * 40)
 print(" Blue Byte Batch Normalisation (v1) ")
 print("=" * 40)
 
-for path in sorted(audio_files):
-    print(f"Processing: {os.path.basename(path)}")
+for path in audio_files:
+
+    filename = os.path.basename(path)
+
+    # Skip files that are already normalized
+
+    if filename.startswith("normalized_"):
+        print(f"Skipping already normalized file: {filename}")
+        continue
+
+    print(f"Processing: {filename}")
 
     # Load → normalise → save (handled by reusable module functions)
     try:
         audio, sr = load_audio_mono(path)
         normalized, peak_before, peak_after = peak_normalise(
-            audio, target_peak=0.9)
+            audio,
+            target_peak=target_peak
+        )
     except Exception as e:
         print("  Error:", e)
         continue  # skip this file and move to the next
 
     # Build a new output filename with a safe prefix to avoid overwriting original
-    output_name = "normalized_" + os.path.basename(path)
-    output_path = os.path.join(target_folder, output_name)
+    output_name = "normalized_" + filename
+    output_path = os.path.join(output_folder, output_name)
 
     try:
         save_audio(output_path, normalized, sr)

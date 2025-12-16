@@ -112,12 +112,29 @@ A batch peak‑normalisation processor for multiple audio files.
 - Normalizes all files to 90% of full‑scale (~ −1 dBFS)  
 - Saves new files using a safe `normalized_` prefix  
 - Outputs per‑file results and a final batch report  
+- Configurable target peak via CLI (`--target_peak`)
+- Optional output folder to keep original files untouched (`--output_folder`)
+- Automatically skips already-normalized files
+- Safe repeated runs without recursive normalization
 
 ### **Usage**
 ```bash
+# Normalize all supported audio files in the current directory
 python3 batch_normalise.py
+
+# Set a custom target peak
+python3 batch_normalise.py --target_peak 0.8
+
+# Normalize files from a specific folder
+python3 batch_normalise.py --folder ./audio
+
+# Save normalized files to a separate output folder
+python3 batch_normalise.py --output_folder normalized_out
 ```
-Processes all supported audio files in the current directory.
+
+### **Behavior Notes**
+- Files starting with `normalized_` are skipped automatically to prevent recursive processing.
+- Output files are prefixed with `normalized_` to avoid overwriting originals.
 
 ---
 
@@ -191,6 +208,10 @@ Ensure the input files exist in the directory you are scanning or processing.
 - 🔜 Spectral analysis toolkit  
 - 🔜 Modular CLI pipeline interface  
 - 🔜 GUI desktop version (Tkinter or Electron‑Python)
+- 🔜 Dry‑run mode (`--dry_run`)
+- 🔜 Overwrite protection / confirmation flag
+- 🔜 Additional loudness‑based normalization (LUFS)
+- 🔜 Cross‑platform GUI frontend
 
 This repository expands every week with new tools and improvements.
 

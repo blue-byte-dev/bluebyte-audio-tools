@@ -28,23 +28,33 @@ parser.add_argument("--output_folder",
                     default="",
                     help="Optional output folder to save normalised files. Defaults to the input folder.")
 
+parser.add_argument("--dry_run",
+                    action="store_true",
+                    help="Show what would be done without actually processing files.")
+
 args = parser.parse_args()
 
 # Folder to scan (current working directory by default)
 target_folder = args.folder
 target_peak = args.target_peak
 
-# Output folder (optional). If relative, treat it as inside target folder.
+# Output folder (optional). If relative, treat it as inside target_folder.
 output_folder_arg = args.output_folder.strip()
 
 if output_folder_arg:
-    output_folder = output_folder_arg if os.path.isabs(
-        output_folder_arg) else os.path.join(target_folder, output_folder_arg)
-    try:
-        os.makedirs(output_folder, exist_ok=True)
-    except Exception as e:
-        print("Error creating output folder:", e)
-        exit()
+    output_folder = (
+        output_folder_arg
+        if os.path.isabs(output_folder_arg)
+        else os.path.join(target_folder, output_folder_arg)
+    )
+
+    # Only create folders when not in dry-run mode (dry-run should avoid filesystem writes).
+    if not args.dry_run:
+        try:
+            os.makedirs(output_folder, exist_ok=True)
+        except Exception as e:
+            print("Error creating output folder:", e)
+            exit()
 else:
     output_folder = target_folder
 # --- STEP 1: Find supported audio files in the target folder ---
@@ -57,6 +67,7 @@ except Exception as e:
 print(f"Scanning folder: {os.path.abspath(target_folder)}")
 print(f"Found {len(audio_files)} supported audio file(s).")
 print(f"Output folder: {os.path.abspath(output_folder)}")
+print(f"Dry run:       {args.dry_run}")
 
 if not audio_files:
     print("No supported audio files found. Nothing to normalise.")
@@ -96,6 +107,10 @@ for path in audio_files:
     output_name = "normalized_" + filename
     output_path = os.path.join(output_folder, output_name)
 
+    if args.dry_run:
+        print(f"  DRY RUN → Would save to: {os.path.abspath(output_path)}")
+        continue
+
     try:
         save_audio(output_path, normalized, sr)
     except Exception as e:
@@ -104,6 +119,9 @@ for path in audio_files:
 
     print(
         f"  Done → Peak: {peak_before:.4f} → {peak_after:.4f} | Saved as: {output_name}")
+
+if args.dry_run:
+    print("Dry run complete. No files were written.")
 
 # Final summary banner for the batch run
 print("=" * 40)

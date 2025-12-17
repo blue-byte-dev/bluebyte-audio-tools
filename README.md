@@ -1,4 +1,4 @@
-# 🎧 BlueByte Audio Tools  
+# 🎧 BlueByte Audio Tools
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Active-green.svg)
@@ -116,6 +116,7 @@ A batch peak‑normalisation processor for multiple audio files.
 - Optional output folder to keep original files untouched (`--output_folder`)
 - Automatically skips already-normalized files
 - Safe repeated runs without recursive normalization
+- Dry-run mode to preview processing without writing any files (`--dry_run`)
 
 ### **Usage**
 ```bash
@@ -130,11 +131,15 @@ python3 batch_normalise.py --folder ./audio
 
 # Save normalized files to a separate output folder
 python3 batch_normalise.py --output_folder normalized_out
+
+# Preview what would be processed without saving files
+python3 batch_normalise.py --dry_run
 ```
 
 ### **Behavior Notes**
 - Files starting with `normalized_` are skipped automatically to prevent recursive processing.
 - Output files are prefixed with `normalized_` to avoid overwriting originals.
+- Dry-run mode performs all checks and calculations but never creates folders or writes files.
 
 ---
 
@@ -208,7 +213,7 @@ Ensure the input files exist in the directory you are scanning or processing.
 - 🔜 Spectral analysis toolkit  
 - 🔜 Modular CLI pipeline interface  
 - 🔜 GUI desktop version (Tkinter or Electron‑Python)
-- 🔜 Dry‑run mode (`--dry_run`)
+- ✔ Dry‑run mode (`--dry_run`)
 - 🔜 Overwrite protection / confirmation flag
 - 🔜 Additional loudness‑based normalization (LUFS)
 - 🔜 Cross‑platform GUI frontend

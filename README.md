@@ -21,7 +21,7 @@ BlueByte Audio Tools provides lightweight, robust, and reliable audio-processing
 
 Every script includes input validation, error handling, clean terminal output, and safe‑file operations.
 
-As of the current development stage, all tools share a common backend engine (`bb_audio.py`) that centralizes audio loading, validation, normalization logic, and file handling. This ensures consistency, easier maintenance, and future readiness for CLI and GUI interfaces.
+As of the current development stage, all tools share a common backend engine (`bb_audio.py`) that centralizes audio loading, validation, normalization logic, file handling, and safety checks. This ensures consistency, easier maintenance, and future readiness for CLI and GUI interfaces.
 
 ---
 
@@ -117,6 +117,9 @@ A batch peak‑normalisation processor for multiple audio files.
 - Automatically skips already-normalized files
 - Safe repeated runs without recursive normalization
 - Dry-run mode to preview processing without writing any files (`--dry_run`)
+- Supports optional WAV and FLAC output format conversion via CLI (`--format`)
+- Explicit dry-run messaging that explains skips, overwrites, and writes
+- End-of-run batch summary with processed, skipped, and written counts
 
 ### **Usage**
 ```bash
@@ -134,12 +137,20 @@ python3 batch_normalise.py --output_folder normalized_out
 
 # Preview what would be processed without saving files
 python3 batch_normalise.py --dry_run
+
+# Convert normalized output to FLAC
+python3 batch_normalise.py --format flac
+
+# Preview batch behavior without writing files
+python3 batch_normalise.py --dry_run --output_folder normalized_out
 ```
 
 ### **Behavior Notes**
 - Files starting with `normalized_` are skipped automatically to prevent recursive processing.
 - Output files are prefixed with `normalized_` to avoid overwriting originals.
 - Dry-run mode performs all checks and calculations but never creates folders or writes files.
+- Dry-run mode reports what *would* happen, including skips and overwrites, without writing files.
+- Batch summary statistics are printed at the end of every run.
 
 ---
 
@@ -207,14 +218,14 @@ Ensure the input files exist in the directory you are scanning or processing.
 - ✔ Folder scanner (batch foundation) (`folder_scanner.py`)  
 - ✔ Batch normaliser v1 (`batch_normalise.py`)  
 - ✔ Shared backend engine refactor (`bb_audio.py`)
-- 🔜 Batch format conversion (WAV ↔ MP3 ↔ FLAC)  
+- ✔ Batch format conversion (WAV ↔ FLAC)
 - 🔜 LUFS loudness analyzer  
 - 🔜 Noise‑reduction utility  
 - 🔜 Spectral analysis toolkit  
 - 🔜 Modular CLI pipeline interface  
 - 🔜 GUI desktop version (Tkinter or Electron‑Python)
 - ✔ Dry‑run mode (`--dry_run`)
-- 🔜 Overwrite protection / confirmation flag
+- ✔ Overwrite protection flag (`--overwrite`)
 - 🔜 Additional loudness‑based normalization (LUFS)
 - 🔜 Cross‑platform GUI frontend
 

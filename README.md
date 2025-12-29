@@ -23,6 +23,19 @@ Every script includes input validation, error handling, clean terminal output, a
 
 As of the current development stage, all tools share a common backend engine (`bb_audio.py`) that centralizes audio loading, validation, normalization logic, file handling, and safety checks. This ensures consistency, easier maintenance, and future readiness for CLI and GUI interfaces.
 
+## ✅ Code Quality & Testing
+
+All core backend logic is fully unit-tested using **pytest**.
+
+- Deterministic functions are covered with pure unit tests
+- File-system behavior is tested using temporary directories
+- Audio I/O is tested via mocking (no real decoding required)
+- Safety logic (dry-run, overwrite protection, skip rules) is explicitly verified
+
+An end-to-end **integration sanity check** has also been performed using real audio files to confirm correct behavior of the full processing pipeline.
+
+This ensures the project is safe to refactor, extend, and maintain over time.
+
 ---
 
 # 📂 Tools Included
@@ -120,6 +133,7 @@ A batch peak‑normalisation processor for multiple audio files.
 - Supports optional WAV and FLAC output format conversion via CLI (`--format`)
 - Explicit dry-run messaging that explains skips, overwrites, and writes
 - End-of-run batch summary with processed, skipped, and written counts
+- Fully covered by unit tests with verified real-world integration behavior
 
 ### **Usage**
 ```bash
@@ -219,6 +233,7 @@ Ensure the input files exist in the directory you are scanning or processing.
 - ✔ Batch normaliser v1 (`batch_normalise.py`)  
 - ✔ Shared backend engine refactor (`bb_audio.py`)
 - ✔ Batch format conversion (WAV ↔ FLAC)
+- ✔ Full unit test coverage for backend engine (`bb_audio.py`)
 - 🔜 LUFS loudness analyzer  
 - 🔜 Noise‑reduction utility  
 - 🔜 Spectral analysis toolkit  

@@ -1,6 +1,6 @@
 import argparse
 import os
-from bb_audio import list_audio_files, load_audio_mono, peak_normalise, save_audio
+from bb_audio import list_audio_files, load_audio_mono, peak_normalise, save_audio, should_write_file
 
 # Batch normalises all supported audio files in a folder using peak normalisation.
 # -------------------------------------------------------------
@@ -100,6 +100,7 @@ print("=" * 40)
 processed = 0
 skipped = 0
 written = 0
+planned = 0
 
 
 def process_file(
@@ -137,27 +138,30 @@ def process_file(
     new_ext = f".{output_format}" if output_format else ext
     output_name = f"normalized_{base}{new_ext}"
     output_path = os.path.join(output_folder, output_name)
+    should_write, reason = should_write_file(
+        output_path, overwrite=overwrite, dry_run=dry_run
+    )
 
-    output_exists = os.path.exists(output_path)
-
-    # If the output already exists and overwrite is not allowed, skip.
-    # In dry-run mode, explain that it WOULD be skipped.
-    if output_exists and not overwrite:
-        if dry_run:
+    # Decision output is centralized in bb_audio.should_write_file.
+    # Map (should_write, reason) to user-facing messaging and status.
+    if not should_write:
+        if reason == "dry_run_skip":
             print(
                 f"  DRY RUN → Would skip (output exists): {os.path.abspath(output_path)}")
-            return "dry_run"
+            return "dry_run_skip"
+        # reason == "exists"
         print(f"Skipping existing output file: {output_name}")
         return "skipped"
 
-    # Dry-run mode: explain what WOULD happen without writing files.
+    # should_write is True
     if dry_run:
-        if output_exists and overwrite:
+        if reason == "overwrite":
             print(
                 f"  DRY RUN → Would overwrite: {os.path.abspath(output_path)}")
         else:
+            # reason == "new"
             print(f"  DRY RUN → Would save to: {os.path.abspath(output_path)}")
-        return "dry_run"
+        return "dry_run_plan"
 
     try:
         save_audio(output_path, normalized, sr)
@@ -183,7 +187,13 @@ for path in audio_files:
     if result == "written":
         processed += 1
         written += 1
-    elif result in {"skipped", "dry_run"}:
+    elif result == "skipped":
+        processed += 1
+        skipped += 1
+    elif result == "dry_run_plan":
+        processed += 1
+        planned += 1
+    elif result == "dry_run_skip":
         processed += 1
         skipped += 1
 
@@ -196,6 +206,7 @@ print("=" * 40)
 print(f"Files found:     {len(audio_files)}")
 print(f"Processed:      {processed}")
 print(f"Skipped:        {skipped}")
+print(f"Planned:        {planned}")
 print(f"Written:        {written}")
 print(f"Dry run:        {args.dry_run}")
 

@@ -31,6 +31,7 @@ All core backend logic is fully unit-tested using **pytest**.
 - File-system behavior is tested using temporary directories
 - Audio I/O is tested via mocking (no real decoding required)
 - Safety logic (dry-run, overwrite protection, skip rules) is explicitly verified
+- FFmpeg stderr parsing is validated via unit tests (including multiline true-peak blocks)
 
 An end-to-end **integration sanity check** has also been performed using real audio files to confirm correct behavior of the full processing pipeline.
 
@@ -168,6 +169,39 @@ python3 batch_normalise.py --dry_run --output_folder normalized_out
 
 ---
 
+## 🔹 `lufs_analyse.py`
+A professional loudness analysis utility supporting both Python-based and FFmpeg-based measurement engines.
+
+### **Features**
+- Integrated LUFS measurement (ITU-R BS.1770 compliant)
+- Optional engine selection:
+  - Python engine (`pyloudnorm`) for fast, dependency-light analysis
+  - FFmpeg engine for industry-standard reference measurements
+- Optional comparison mode (`--compare`) to validate Python results against FFmpeg
+- Reports:
+  - Integrated LUFS
+  - Momentary max loudness
+  - Short-term max loudness
+  - Loudness Range (LRA)
+  - Sample peak (dBFS)
+  - True Peak (dBTP, FFmpeg engine)
+- Graceful handling of silence and very short audio
+- Fully unit-tested FFmpeg parsing logic
+
+### **Usage**
+```bash
+# Analyze a file using the Python engine
+python3 lufs_analyse.py audio.wav
+
+# Use FFmpeg as the loudness engine
+python3 lufs_analyse.py audio.wav --engine ffmpeg
+
+# Compare Python and FFmpeg results
+python3 lufs_analyse.py audio.wav --compare
+```
+
+---
+
 # 🛠 Installation
 
 Clone the repository:
@@ -194,7 +228,7 @@ venv\Scripts\activate
 Install dependencies:
 
 ```bash
-pip install numpy librosa matplotlib soundfile
+pip install numpy librosa matplotlib soundfile pyloudnorm
 ```
 
 ---
@@ -223,6 +257,11 @@ python3 batch_normalise.py
 
 Ensure the input files exist in the directory you are scanning or processing.
 
+### Analyze loudness (LUFS):
+```bash
+python3 lufs_analyse.py your_audio.wav
+```
+
 ---
 
 # 📅 Roadmap (12‑Week Development Plan)
@@ -234,7 +273,7 @@ Ensure the input files exist in the directory you are scanning or processing.
 - ✔ Shared backend engine refactor (`bb_audio.py`)
 - ✔ Batch format conversion (WAV ↔ FLAC)
 - ✔ Full unit test coverage for backend engine (`bb_audio.py`)
-- 🔜 LUFS loudness analyzer  
+- ✔ LUFS loudness analyzer with FFmpeg validation (`lufs_analyse.py`)
 - 🔜 Noise‑reduction utility  
 - 🔜 Spectral analysis toolkit  
 - 🔜 Modular CLI pipeline interface  

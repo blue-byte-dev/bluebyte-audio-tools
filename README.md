@@ -52,8 +52,24 @@ A reusable internal module that powers all BlueByte Audio Tools.
 - Loads audio safely while preserving sample rate  
 - Performs peak normalization with safety checks  
 - Handles audio file writing with robust error reporting  
+- Centralizes write-decision logic (skip / overwrite / dry-run) via `should_write_file()`
+- Provides reusable peak utilities (`peak_value()` and `peak_normalise()`) used across tools
+- Provides a single safe-save path via `save_audio()` (consistent error handling and messages)
+- Keeps file discovery consistent across tools via `list_audio_files()` (same extension rules everywhere)
+- Reduces duplication across CLI tools (batch normalise, LUFS analysis, future tools)
+
+### **Public API (Functions)**
+The backend exposes a small, stable function surface:
+
+- `list_audio_files(folder)` → returns supported audio file paths
+- `load_audio_mono(path)` → loads audio as mono while preserving sample rate
+- `peak_value(audio)` → returns sample peak (linear)
+- `peak_normalise(audio, target_peak)` → returns normalised audio + safety checks
+- `save_audio(path, audio, sr)` → writes audio to disk safely
+- `should_write_file(path, overwrite, dry_run)` → returns `(ok_to_write, reason)` where reason is one of: `new`, `overwrite`, `skip`, `dry_run`
 
 This module is not intended to be run directly.  
+It exists to keep tool behavior consistent (same file rules, same safety rules, same error handling).
 All user-facing scripts import and rely on this shared engine.
 
 ---
@@ -187,6 +203,12 @@ A professional loudness analysis utility supporting both Python-based and FFmpeg
   - True Peak (dBTP, FFmpeg engine)
 - Graceful handling of silence and very short audio
 - Fully unit-tested FFmpeg parsing logic
+- Target LUFS compliance reporting (`--target_lufs`, `--tolerance`)
+- Optional gain application to create a loudness-targeted file (`--apply`)
+- Safety default: **no file is written** when already within tolerance; use `--force_apply` to write anyway
+- Dry-run support for apply mode (`--dry_run`) to preview the write without creating output
+- Custom output path for apply mode (`--output`)
+- Target reference selection in compare mode (uses **FFmpeg integrated** as the reference)
 
 ### **Usage**
 ```bash
@@ -198,6 +220,21 @@ python3 lufs_analyse.py audio.wav --engine ffmpeg
 
 # Compare Python and FFmpeg results
 python3 lufs_analyse.py audio.wav --compare
+
+# Check a file against a target loudness (compliance report)
+python3 lufs_analyse.py audio.wav --target_lufs -14
+
+# Apply the suggested gain and write a new file (skips writing if already compliant)
+python3 lufs_analyse.py audio.wav --target_lufs -14 --apply
+
+# Force writing even if the file is already within tolerance
+python3 lufs_analyse.py audio.wav --target_lufs -14 --apply --force_apply
+
+# Preview the apply step without writing anything
+python3 lufs_analyse.py audio.wav --target_lufs -14 --apply --dry_run
+
+# Write to a custom output path
+python3 lufs_analyse.py audio.wav --target_lufs -14 --apply --output out/audio_-14.wav
 ```
 
 ---
@@ -229,6 +266,7 @@ Install dependencies:
 
 ```bash
 pip install numpy librosa matplotlib soundfile pyloudnorm
+pip install -U pip
 ```
 
 ---
@@ -262,6 +300,16 @@ Ensure the input files exist in the directory you are scanning or processing.
 python3 lufs_analyse.py your_audio.wav
 ```
 
+### Target LUFS compliance + optional apply:
+```bash
+# Compliance report against -14 LUFS
+python3 lufs_analyse.py your_audio.wav --target_lufs -14
+
+# Apply gain and write a targeted version (writes only if not compliant unless forced)
+python3 lufs_analyse.py your_audio.wav --target_lufs -14 --apply
+python3 lufs_analyse.py your_audio.wav --target_lufs -14 --apply --force_apply
+```
+
 ---
 
 # 📅 Roadmap (12‑Week Development Plan)
@@ -274,6 +322,7 @@ python3 lufs_analyse.py your_audio.wav
 - ✔ Batch format conversion (WAV ↔ FLAC)
 - ✔ Full unit test coverage for backend engine (`bb_audio.py`)
 - ✔ LUFS loudness analyzer with FFmpeg validation (`lufs_analyse.py`)
+- ✔ Target LUFS compliance + apply mode (`--target_lufs`, `--apply`, `--force_apply`)
 - 🔜 Noise‑reduction utility  
 - 🔜 Spectral analysis toolkit  
 - 🔜 Modular CLI pipeline interface  

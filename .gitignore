@@ -16,3 +16,5 @@ __pycache__/
 
 # MacOS files
 .DS_Store
+# local practice / scratch
+basic_practice.py

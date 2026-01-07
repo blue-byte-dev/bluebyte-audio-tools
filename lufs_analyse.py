@@ -3,11 +3,14 @@ import argparse
 import os
 import re
 import subprocess
-from dataclasses import dataclass
+import json
+import tempfile
+import soundfile as sf
+import sys
+from dataclasses import dataclass, asdict
 from typing import Optional
 
 import numpy as np
-import soundfile as sf
 
 from bb_audio import load_audio_mono
 
@@ -15,45 +18,13 @@ from bb_audio import load_audio_mono
 # ----------------------------
 # Small utilities
 # ----------------------------
-
-def clamp(x: float, lo: float, hi: float) -> float:
-    return lo if x < lo else hi if x > hi else x
-
+# NOTE: This script is analysis-only (read-only). It never writes audio.
+# Normalization/rendering should live in a separate writer CLI (e.g., lufs_normalise.py).
 
 def db_from_lin(x: float) -> float:
     if x <= 0.0:
         return float("-inf")
     return 20.0 * float(np.log10(x))
-
-
-def lin_from_db(db: float) -> float:
-    return float(10.0 ** (db / 20.0))
-
-
-def fmt_signed(x: float) -> str:
-    return f"{x:+.2f}"
-
-
-# ----------------------------
-# Gain computation (target mode)
-# ----------------------------
-
-def compute_gain_db(
-    current_lufs: float,
-    target_lufs: float,
-    min_gain_db: float,
-    max_gain_db: float,
-) -> float:
-    """Compute gain (dB) to move current integrated LUFS to target LUFS.
-
-    gain_db = -(current - target)
-      - if current is louder than target (current > target), gain_db is negative
-      - if current is quieter than target (current < target), gain_db is positive
-
-    The result is clamped to [min_gain_db, max_gain_db].
-    """
-    raw = -(current_lufs - target_lufs)
-    return clamp(raw, min_gain_db, max_gain_db)
 
 
 # ----------------------------
@@ -67,6 +38,7 @@ class Ebur128Metrics:
     momentary_max_lufs: Optional[float]
     shortterm_max_lufs: Optional[float]
     true_peak_dbtp: Optional[float]
+    measurement_basis: str  # "file" or "mono_samples"
 
 
 def _max_above_floor(values: list[str], floor: float = -70.0) -> Optional[float]:
@@ -82,8 +54,13 @@ def _max_above_floor(values: list[str], floor: float = -70.0) -> Optional[float]
     return best
 
 
-def measure_ebu128_ffmpeg(path: str) -> Ebur128Metrics:
-    """Measure EBU R128 metrics via FFmpeg `ebur128=peak=true`.
+def measure_ebu128_ffmpeg(
+    path: str,
+    *,
+    audio: Optional[np.ndarray] = None,
+    sr: Optional[int] = None,
+) -> Ebur128Metrics:
+    """Measure EBU R128 metrics via FFmpeg `ebur128=peak=true` (optionally using provided mono samples).
 
     Returns integrated LUFS + offline stats derived from running meter output:
     - momentary_max_lufs: max M values above the -70 LUFS floor
@@ -94,11 +71,25 @@ def measure_ebu128_ffmpeg(path: str) -> Ebur128Metrics:
     Note: momentary/short-term are OFFLINE maxima from the run; this CLI is not
     a real-time meter.
     """
+    # If mono samples are provided, run FFmpeg on a temp mono WAV so python vs ffmpeg
+    # comparisons use identical input samples (avoids downmix coefficient differences).
+    tmp_path: Optional[str] = None
+    input_path = path
+    basis = "file"
+
+    if audio is not None and sr is not None:
+        basis = "mono_samples"
+        mono = np.asarray(audio, dtype=np.float64).reshape(-1)
+        fd, tmp_path = tempfile.mkstemp(suffix=".wav", prefix="bb_mono_")
+        os.close(fd)
+        sf.write(tmp_path, mono, int(sr))
+        input_path = tmp_path
+
     cmd = [
         "ffmpeg",
         "-hide_banner",
         "-i",
-        path,
+        input_path,
         "-filter_complex",
         "ebur128=peak=true",
         "-f",
@@ -118,6 +109,12 @@ def measure_ebu128_ffmpeg(path: str) -> Ebur128Metrics:
         raise RuntimeError("ffmpeg not found on system.") from e
     except subprocess.CalledProcessError as e:
         raise RuntimeError("ffmpeg failed to analyse audio.") from e
+    finally:
+        if tmp_path is not None:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
     stderr = result.stderr
 
@@ -184,6 +181,7 @@ def measure_ebu128_ffmpeg(path: str) -> Ebur128Metrics:
         momentary_max_lufs=m_max,
         shortterm_max_lufs=s_max,
         true_peak_dbtp=tp,
+        measurement_basis=basis,
     )
 
 
@@ -193,7 +191,12 @@ def measure_ebu128_ffmpeg(path: str) -> Ebur128Metrics:
 
 def measure_integrated_lufs_python(audio: np.ndarray, sr: int) -> float:
     """Integrated LUFS using pyloudnorm (ITU-R BS.1770 / EBU R128 style)."""
-    import pyloudnorm as pyln
+    try:
+        import pyloudnorm as pyln
+    except ImportError as e:
+        raise RuntimeError(
+            "Python loudness engine requires 'pyloudnorm'. Install it with: pip install pyloudnorm"
+        ) from e
 
     meter = pyln.Meter(sr)
     return float(meter.integrated_loudness(audio))
@@ -224,7 +227,12 @@ def windowed_lufs_max_python(
     if audio.size < win_n:
         return None
 
-    import pyloudnorm as pyln
+    try:
+        import pyloudnorm as pyln
+    except ImportError as e:
+        raise RuntimeError(
+            "Python loudness engine requires 'pyloudnorm'. Install it with: pip install pyloudnorm"
+        ) from e
 
     meter = pyln.Meter(sr)
 
@@ -250,12 +258,14 @@ def windowed_lufs_max_python(
 @dataclass
 class AnalysisWarnings:
     short_audio_warning: Optional[str] = None
+    engine_warning: Optional[str] = None
 
 
 @dataclass
 class AnalysisResult:
     file_path: str
     sr: int
+    duration_sec: float
     peak_dbfs: float
     integrated_lufs: float
 
@@ -264,6 +274,7 @@ class AnalysisResult:
     shortterm_max_lufs: Optional[float] = None
     loudness_range_lu: Optional[float] = None
     true_peak_dbtp: Optional[float] = None
+    ffmpeg_measurement_basis: Optional[str] = None
 
     # Compare mode
     integrated_lufs_python: Optional[float] = None
@@ -273,24 +284,6 @@ class AnalysisResult:
     shortterm_max_python: Optional[float] = None
     momentary_max_ffmpeg: Optional[float] = None
     shortterm_max_ffmpeg: Optional[float] = None
-
-    # Target mode
-    target_lufs: Optional[float] = None
-    tolerance_lu: Optional[float] = None
-    target_delta_lu: Optional[float] = None
-    target_status: Optional[str] = None
-    suggested_gain_db: Optional[float] = None
-
-    apply_requested: bool = False
-    apply_skipped: bool = False
-    apply_gain_db: Optional[float] = None
-    predicted_peak_dbfs: Optional[float] = None
-    predicted_true_peak_dbtp: Optional[float] = None
-    predicted_true_peak_warn: bool = False
-
-    dry_run: bool = False
-    wrote_path: Optional[str] = None
-    apply_note: Optional[str] = None
 
 
 def parse_args(argv=None) -> argparse.Namespace:
@@ -314,78 +307,23 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument(
         "--engine",
         choices=["python", "ffmpeg"],
-        default="python",
-        help="Loudness analysis engine (default: python).",
+        default="ffmpeg",
+        help="Loudness analysis engine (default: ffmpeg). FFmpeg is the reference implementation; python is approximate.",
     )
     parser.add_argument(
         "--compare",
         action="store_true",
         help="Run both engines (python + ffmpeg) and print a delta.",
     )
-
     parser.add_argument(
-        "--target_lufs",
-        type=float,
-        default=None,
-        help="Optional target integrated LUFS for compliance reporting (e.g., -14).",
-    )
-    parser.add_argument(
-        "--tolerance",
-        type=float,
-        default=0.5,
-        help="Tolerance in LU for target compliance (default: 0.5 LUFS).",
-    )
-
-    parser.add_argument(
-        "--apply",
+        "--json",
         action="store_true",
-        help="Apply gain to reach --target_lufs and write a new file (default: measure only).",
+        help="Emit machine-readable JSON to stdout instead of the human report.",
     )
     parser.add_argument(
-        "--force_apply",
+        "--json_pretty",
         action="store_true",
-        help="With --apply: write output even if already within --tolerance of --target_lufs.",
-    )
-
-    parser.add_argument(
-        "--output",
-        default=None,
-        help="Output file path when using --apply (default: targeted_<input>.wav).",
-    )
-
-    parser.add_argument(
-        "--min_gain_db",
-        type=float,
-        default=-24.0,
-        help="Minimum allowed gain change in dB (default: -24.0).",
-    )
-    parser.add_argument(
-        "--max_gain_db",
-        type=float,
-        default=12.0,
-        help="Maximum allowed gain change in dB (default: +12.0).",
-    )
-
-    parser.add_argument(
-        "--true_peak_limit",
-        type=float,
-        default=-1.0,
-        help=(
-            "If ffmpeg true-peak is available, warn when predicted output exceeds this limit in dBTP "
-            "(default: -1.0)."
-        ),
-    )
-
-    parser.add_argument(
-        "--allow_clip",
-        action="store_true",
-        help="Allow writing even if sample peak would exceed 0 dBFS (clipping). Default is to abort.",
-    )
-
-    parser.add_argument(
-        "--dry_run",
-        action="store_true",
-        help="With --apply, print what would be written without creating a file.",
+        help="Pretty-print JSON (implies --json).",
     )
 
     return parser.parse_args(argv)
@@ -395,33 +333,35 @@ def resolve_file_path(args: argparse.Namespace) -> str:
     return args.path if args.path is not None else args.file
 
 
-def default_output_path_for_apply(file_path: str) -> str:
-    base = os.path.basename(file_path)
-    stem, _ext = os.path.splitext(base)
-    return os.path.join(os.path.dirname(file_path), f"targeted_{stem}.wav")
-
-
-def analyse_file(args: argparse.Namespace) -> tuple[AnalysisResult, AnalysisWarnings] | tuple[None, None]:
-    file_path = resolve_file_path(args)
-
-    if not os.path.exists(file_path):
-        print(f"Error: File '{file_path}' does not exist.")
-        return None, None
-
-    audio, sr = load_audio_mono(file_path)
-    audio = np.asarray(audio, dtype=np.float64)
-
+def build_warnings(args: argparse.Namespace, duration_sec: float) -> AnalysisWarnings:
+    """Build AnalysisWarnings consistently for both JSON and human reports."""
     warnings = AnalysisWarnings()
 
-    if audio.size == 0:
-        print("Error: Audio contains no samples.")
-        return None, None
-
-    duration_sec = float(audio.size) / float(sr) if sr else 0.0
     if duration_sec < 3.0:
         warnings.short_audio_warning = (
             f"Very short audio ({duration_sec:.2f}s). LUFS/LRA may be unreliable."
         )
+
+    if str(args.engine) == "python" and not bool(args.compare):
+        warnings.engine_warning = (
+            "Python loudness engine is approximate. FFmpeg is the reference engine "
+            "and may differ from DAW / streaming-platform meters."
+        )
+
+    return warnings
+
+
+def analyse_file(
+    args: argparse.Namespace,
+    audio: np.ndarray,
+    sr: int,
+) -> tuple[AnalysisResult, AnalysisWarnings] | tuple[None, None]:
+    file_path = resolve_file_path(args)
+
+    audio = np.asarray(audio, dtype=np.float64)
+
+    duration_sec = float(audio.size) / float(sr) if sr else 0.0
+    warnings = build_warnings(args, duration_sec)
 
     # Peak + silence check
     peak_lin = float(np.max(np.abs(audio)))
@@ -435,13 +375,16 @@ def analyse_file(args: argparse.Namespace) -> tuple[AnalysisResult, AnalysisWarn
 
     # Compare mode: always run both engines and pick ffmpeg integrated as the target reference.
     if compare:
-        lufs_py = measure_integrated_lufs_python(audio, sr)
-        mmax_py = windowed_lufs_max_python(
-            audio, sr, window_sec=0.4, step_sec=0.1)
-        smax_py = windowed_lufs_max_python(
-            audio, sr, window_sec=3.0, step_sec=0.5)
+        try:
+            lufs_py = measure_integrated_lufs_python(audio, sr)
+            mmax_py = windowed_lufs_max_python(
+                audio, sr, window_sec=0.4, step_sec=0.1)
+            smax_py = windowed_lufs_max_python(
+                audio, sr, window_sec=3.0, step_sec=0.5)
+        except RuntimeError:
+            return None, None
 
-        ff = measure_ebu128_ffmpeg(file_path)
+        ff = measure_ebu128_ffmpeg(file_path, audio=audio, sr=sr)
 
         lufs_ff = ff.integrated_lufs
         delta = lufs_ff - lufs_py
@@ -450,6 +393,7 @@ def analyse_file(args: argparse.Namespace) -> tuple[AnalysisResult, AnalysisWarn
         res = AnalysisResult(
             file_path=file_path,
             sr=sr,
+            duration_sec=duration_sec,
             peak_dbfs=peak_dbfs,
             integrated_lufs=lufs_ff,
             integrated_lufs_python=lufs_py,
@@ -461,139 +405,53 @@ def analyse_file(args: argparse.Namespace) -> tuple[AnalysisResult, AnalysisWarn
             shortterm_max_ffmpeg=ff.shortterm_max_lufs,
             loudness_range_lu=ff.loudness_range_lu,
             true_peak_dbtp=ff.true_peak_dbtp,
-            momentary_max_lufs=ff.momentary_max_lufs,
-            shortterm_max_lufs=ff.shortterm_max_lufs,
+            ffmpeg_measurement_basis=ff.measurement_basis,
         )
         return res, warnings
 
     # Non-compare: run selected engine.
     engine = str(args.engine)
     if engine == "python":
-        lufs_i = measure_integrated_lufs_python(audio, sr)
+        try:
+            lufs_i = measure_integrated_lufs_python(audio, sr)
+            mmax_py = windowed_lufs_max_python(
+                audio, sr, window_sec=0.4, step_sec=0.1)
+            smax_py = windowed_lufs_max_python(
+                audio, sr, window_sec=3.0, step_sec=0.5)
+        except RuntimeError:
+            return None, None
         res = AnalysisResult(
             file_path=file_path,
             sr=sr,
+            duration_sec=duration_sec,
             peak_dbfs=peak_dbfs,
             integrated_lufs=lufs_i,
+            integrated_lufs_python=lufs_i,
+            momentary_max_python=mmax_py,
+            shortterm_max_python=smax_py,
         )
         return res, warnings
 
     # ffmpeg engine
-    ff = measure_ebu128_ffmpeg(file_path)
+    ff = measure_ebu128_ffmpeg(file_path, audio=audio, sr=sr)
     res = AnalysisResult(
         file_path=file_path,
         sr=sr,
+        duration_sec=duration_sec,
         peak_dbfs=peak_dbfs,
         integrated_lufs=ff.integrated_lufs,
+        integrated_lufs_ffmpeg=ff.integrated_lufs,
+        # Canonical ffmpeg fields (schema v1)
+        momentary_max_ffmpeg=ff.momentary_max_lufs,
+        shortterm_max_ffmpeg=ff.shortterm_max_lufs,
+        # Backward-compatible aliases for the human report (pruned from JSON)
         momentary_max_lufs=ff.momentary_max_lufs,
         shortterm_max_lufs=ff.shortterm_max_lufs,
         loudness_range_lu=ff.loudness_range_lu,
         true_peak_dbtp=ff.true_peak_dbtp,
+        ffmpeg_measurement_basis=ff.measurement_basis,
     )
     return res, warnings
-
-
-def apply_target_gain_if_requested(
-    args: argparse.Namespace,
-    result: AnalysisResult,
-    warnings: AnalysisWarnings,
-) -> int:
-    """If --target_lufs and --apply are used, perform optional render.
-
-    Implements:
-    - do NOT write if already within tolerance, unless --force_apply
-    - optional --dry_run
-    - peak prediction + optional true-peak prediction warning
-    """
-
-    if args.target_lufs is None:
-        return 0
-
-    target_lufs = float(args.target_lufs)
-    tol = float(args.tolerance)
-
-    delta_lu = float(result.integrated_lufs - target_lufs)
-    within = abs(delta_lu) <= tol
-
-    suggested_gain_db = -delta_lu
-
-    result.target_lufs = target_lufs
-    result.tolerance_lu = tol
-    result.target_delta_lu = delta_lu
-    result.suggested_gain_db = suggested_gain_db
-
-    if within:
-        result.target_status = "✅ Within tolerance"
-    else:
-        result.target_status = "⬆ Too loud" if delta_lu > 0 else "⬇ Too quiet"
-
-    # Apply mode?
-    if not args.apply:
-        return 0
-
-    result.apply_requested = True
-
-    # No write if compliant unless forced
-    if within and not args.force_apply:
-        result.apply_skipped = True
-        result.dry_run = bool(args.dry_run)
-        result.apply_note = "Skipped (already within tolerance). Use --force_apply to write anyway."
-        return 0
-
-    # Compute clamped gain for apply
-    gain_db = compute_gain_db(
-        current_lufs=float(result.integrated_lufs),
-        target_lufs=target_lufs,
-        min_gain_db=float(args.min_gain_db),
-        max_gain_db=float(args.max_gain_db),
-    )
-    gain_lin = lin_from_db(gain_db)
-    result.apply_gain_db = gain_db
-
-    # Predict peak after gain
-    # We need the true peak linear for prediction? We only have sample peak dBFS in result.
-    # Predict using sample peak dBFS only.
-    if np.isfinite(result.peak_dbfs):
-        peak_out_dbfs = float(result.peak_dbfs + gain_db)
-    else:
-        peak_out_dbfs = float("-inf")
-    result.predicted_peak_dbfs = peak_out_dbfs
-
-    # True peak prediction if available (only for ffmpeg / compare where TP exists)
-    if result.true_peak_dbtp is not None:
-        pred_tp = float(result.true_peak_dbtp + gain_db)
-        result.predicted_true_peak_dbtp = pred_tp
-        if pred_tp > float(args.true_peak_limit):
-            result.predicted_true_peak_warn = True
-
-    # Safety: clipping check
-    if peak_out_dbfs > 0.0 and not args.allow_clip:
-        result.apply_note = "Error: Predicted sample peak exceeds 0 dBFS. Use --allow_clip to force write."
-        return 1
-
-    # Output path
-    output_path = args.output if args.output is not None else default_output_path_for_apply(
-        result.file_path)
-
-    result.dry_run = bool(args.dry_run)
-
-    if result.dry_run:
-        result.wrote_path = output_path
-        return 0
-
-    # Load again for rendering (keeps apply isolated from analysis flow)
-    audio, sr = load_audio_mono(result.file_path)
-    audio = np.asarray(audio, dtype=np.float64)
-
-    out_audio = audio * gain_lin
-    try:
-        sf.write(output_path, out_audio, sr)
-    except Exception as e:
-        result.apply_note = f"Error writing output file: {e}"
-        return 1
-
-    result.wrote_path = output_path
-    return 0
 
 
 def print_report(result: AnalysisResult, warnings: AnalysisWarnings, args: argparse.Namespace) -> None:
@@ -603,12 +461,19 @@ def print_report(result: AnalysisResult, warnings: AnalysisWarnings, args: argpa
 
     print(f"File:            {result.file_path}")
     print(f"Sample Rate:     {result.sr} Hz")
+    print(f"Duration:        {result.duration_sec:.2f} s")
+
+    engine_label = "compare" if args.compare else str(args.engine)
+    ref_tag = " (reference)" if engine_label == "ffmpeg" else ""
+    if engine_label == "python":
+        ref_tag = " (approx)"
+    print(f"Engine:          {engine_label}{ref_tag}")
 
     if warnings.short_audio_warning:
         print(f"Warning:         {warnings.short_audio_warning}")
 
-    # Silence handling is done in main() before calling analyse_file() in the original version,
-    # but here we keep consistent printing if peak is -inf.
+    if warnings.engine_warning:
+        print(f"Warning:         {warnings.engine_warning}")
 
     if args.compare:
         assert result.integrated_lufs_python is not None
@@ -621,16 +486,6 @@ def print_report(result: AnalysisResult, warnings: AnalysisWarnings, args: argpa
             f"Integrated LUFS (ffmpeg): {result.integrated_lufs_ffmpeg:.2f} LUFS")
         print(
             f"Delta (ffmpeg - python):  {result.delta_ffmpeg_minus_python:+.2f} LU")
-
-        if args.target_lufs is not None:
-            print("Target reference:        ffmpeg integrated")
-
-        if result.momentary_max_python is not None:
-            print(
-                f"Momentary Max (python):   {result.momentary_max_python:.2f} LUFS")
-        if result.shortterm_max_python is not None:
-            print(
-                f"Short-term Max (python):  {result.shortterm_max_python:.2f} LUFS")
 
         if result.momentary_max_ffmpeg is not None:
             print(
@@ -652,63 +507,25 @@ def print_report(result: AnalysisResult, warnings: AnalysisWarnings, args: argpa
         else:
             print(f"Integrated LUFS: {result.integrated_lufs:.2f} LUFS")
 
+        if args.engine == "python":
+            if result.momentary_max_python is not None:
+                print(
+                    f"Momentary Max:   {result.momentary_max_python:.2f} LUFS")
+            if result.shortterm_max_python is not None:
+                print(
+                    f"Short-term Max:  {result.shortterm_max_python:.2f} LUFS")
+
         if args.engine == "ffmpeg":
-            if result.momentary_max_lufs is not None:
-                print(f"Momentary Max:   {result.momentary_max_lufs:.2f} LUFS")
-            if result.shortterm_max_lufs is not None:
-                print(f"Short-term Max:  {result.shortterm_max_lufs:.2f} LUFS")
+            if result.momentary_max_ffmpeg is not None:
+                print(
+                    f"Momentary Max:   {result.momentary_max_ffmpeg:.2f} LUFS")
+            if result.shortterm_max_ffmpeg is not None:
+                print(
+                    f"Short-term Max:  {result.shortterm_max_ffmpeg:.2f} LUFS")
             if result.loudness_range_lu is not None:
                 print(f"Loudness Range:  {result.loudness_range_lu:.2f} LU")
             if result.true_peak_dbtp is not None:
                 print(f"True Peak:       {result.true_peak_dbtp:.2f} dBTP")
-
-    # Target reporting
-    if result.target_lufs is not None:
-        if not np.isfinite(result.integrated_lufs):
-            print(f"Target LUFS:     {result.target_lufs:.2f} LUFS")
-            print("Delta:           N/A (silence)")
-            print("Status:          ⚠ Silence")
-            print("Suggested gain:  N/A")
-        else:
-            assert result.target_delta_lu is not None
-            assert result.target_status is not None
-            assert result.suggested_gain_db is not None
-
-            print(f"Target LUFS:     {result.target_lufs:.2f} LUFS")
-            print(f"Delta:           {fmt_signed(result.target_delta_lu)} LU")
-            print(f"Status:          {result.target_status}")
-            print(
-                f"Suggested gain:  {fmt_signed(result.suggested_gain_db)} dB")
-
-        # Apply reporting
-        if result.apply_requested:
-            if result.apply_skipped:
-                if result.dry_run:
-                    print("Dry run:         True")
-                print(f"Apply:           {result.apply_note}")
-            else:
-                if result.apply_gain_db is not None:
-                    print(
-                        f"Apply gain:      {fmt_signed(result.apply_gain_db)} dB")
-
-                if result.predicted_true_peak_dbtp is not None:
-                    warn = " ⚠" if result.predicted_true_peak_warn else ""
-                    print(
-                        f"Pred. True Peak: {result.predicted_true_peak_dbtp:.2f} dBTP{warn}")
-
-                if result.predicted_peak_dbfs is not None:
-                    print(
-                        f"Pred. Peak:      {result.predicted_peak_dbfs:.2f} dBFS")
-
-                if result.dry_run:
-                    print("Dry run:         True")
-                    if result.wrote_path:
-                        print(f"Would write:     {result.wrote_path}")
-                else:
-                    if result.wrote_path:
-                        print(f"Wrote file:      {result.wrote_path}")
-                    if result.apply_note and result.apply_note.startswith("Error"):
-                        print(result.apply_note)
 
     # Peak always at end for consistency
     if np.isfinite(result.peak_dbfs):
@@ -719,13 +536,82 @@ def print_report(result: AnalysisResult, warnings: AnalysisWarnings, args: argpa
     print("=" * 40)
 
 
+def _round_floats(obj, ndigits: int = 3):
+    """Recursively round floats in JSON payloads for stability/readability."""
+    if isinstance(obj, float):
+        if not np.isfinite(obj):
+            return "-inf" if obj < 0 else "inf"
+        v = round(obj, ndigits)
+        # Normalize -0.0 -> 0.0 for cleaner JSON
+        if v == 0.0:
+            return 0.0
+        return v
+    if isinstance(obj, dict):
+        return {k: _round_floats(v, ndigits) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_round_floats(v, ndigits) for v in obj]
+    return obj
+
+
+def emit_json(result: AnalysisResult, warnings: AnalysisWarnings, args: argparse.Namespace) -> None:
+    payload = asdict(result)
+    payload["mode"] = "analyse"
+    payload["engine"] = "compare" if args.compare else str(args.engine)
+    payload["warnings"] = asdict(warnings)
+
+    payload["schema"] = "bb.lufs.analyse.v1"
+
+    # Schema v1 cleanup: remove deprecated alias fields (always)
+    for k in [
+        "momentary_max_lufs",
+        "shortterm_max_lufs",
+    ]:
+        payload.pop(k, None)
+    # Prune engine-specific fields unless we're explicitly comparing.
+    if not args.compare:
+        eng = str(args.engine)
+        if eng == "python":
+            # Keep python-specific integrated, drop ffmpeg-only stats.
+            for k in [
+                "integrated_lufs_ffmpeg",
+                "delta_ffmpeg_minus_python",
+                "momentary_max_ffmpeg",
+                "shortterm_max_ffmpeg",
+                "loudness_range_lu",
+                "true_peak_dbtp",
+                "momentary_max_lufs",
+                "shortterm_max_lufs",
+                "ffmpeg_measurement_basis",
+            ]:
+                payload.pop(k, None)
+        else:
+            # Keep ffmpeg-specific stats, drop python windowed stats.
+            for k in [
+                "integrated_lufs_python",
+                "delta_ffmpeg_minus_python",
+                "momentary_max_python",
+                "shortterm_max_python",
+            ]:
+                payload.pop(k, None)
+    payload = _round_floats(payload, ndigits=3)
+
+    if args.json_pretty:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
+
+
 def main(argv=None) -> int:
     args = parse_args(argv)
+
+    # Convenience: --json_pretty implies --json
+    if args.json_pretty:
+        args.json = True
 
     file_path = resolve_file_path(args)
 
     if not os.path.exists(file_path):
-        print(f"Error: File '{file_path}' does not exist.")
+        print(f"Error: File '{file_path}' does not exist.", file=sys.stderr)
         return 1
 
     # Load early for silence/empty safety net (fast fail with clean UX)
@@ -737,60 +623,58 @@ def main(argv=None) -> int:
         return 1
 
     peak_lin = float(np.max(np.abs(audio)))
-    peak_dbfs = db_from_lin(peak_lin)
 
-    # Build warnings
     duration_sec = float(audio.size) / float(sr) if sr else 0.0
-    warnings = AnalysisWarnings()
-    if duration_sec < 3.0:
-        warnings.short_audio_warning = (
-            f"Very short audio ({duration_sec:.2f}s). LUFS/LRA may be unreliable."
-        )
+    warnings = build_warnings(args, duration_sec)
 
     # Silence special-case
     if peak_lin == 0.0:
+        silence_res = AnalysisResult(
+            file_path=file_path,
+            sr=sr,
+            duration_sec=duration_sec,
+            peak_dbfs=float("-inf"),
+            integrated_lufs=float("-inf"),
+        )
+        if args.json:
+            emit_json(silence_res, warnings, args)
+            return 0
+
         print("=" * 40)
         print(" Blue Byte LUFS Analysis ")
         print("=" * 40)
         print(f"File:            {file_path}")
         print(f"Sample Rate:     {sr} Hz")
+        print(f"Duration:        {duration_sec:.2f} s")
+        engine_label = "compare" if args.compare else str(args.engine)
+        ref_tag = " (reference)" if engine_label == "ffmpeg" else ""
+        if engine_label == "python":
+            ref_tag = " (approx)"
+        print(f"Engine:          {engine_label}{ref_tag}")
         if warnings.short_audio_warning:
             print(f"Warning:         {warnings.short_audio_warning}")
+        if warnings.engine_warning:
+            print(f"Warning:         {warnings.engine_warning}")
         print("Integrated LUFS: -inf (silence)")
         print("Peak:            -inf dBFS")
-
-        if args.target_lufs is not None:
-            print(f"Target LUFS:     {float(args.target_lufs):.2f} LUFS")
-            print("Delta:           N/A (silence)")
-            print("Status:          ⚠ Silence")
-            print("Suggested gain:  N/A")
-
-            if args.apply:
-                if args.dry_run:
-                    print("Dry run:         True")
-                print("Apply:           N/A (silence)")
-
         print("=" * 40)
         return 0
 
-    # For non-silence, run analysis via the unified flow.
-    # We pass args through analyse_file() which will load the file again only for apply render.
-    res, warn = analyse_file(args)
+    # For non-silence, run analysis via the unified flow using the preloaded audio.
+    res, warn = analyse_file(args, audio=audio, sr=sr)
     if res is None or warn is None:
+        if args.compare or str(args.engine) == "python":
+            print(
+                "Error: Python loudness engine requires 'pyloudnorm'. Install it with: pip install pyloudnorm",
+                file=sys.stderr,
+            )
+        else:
+            print("Error: analysis failed.", file=sys.stderr)
         return 1
 
-    # ensure peak from the early load is used (avoids any tiny dtype differences)
-    res.peak_dbfs = peak_dbfs
-
-    # target/apply handling
-    if args.target_lufs is not None:
-        # For compare mode, the result.integrated_lufs is already ffmpeg integrated.
-        # For non-compare, it is the selected engine integrated.
-        apply_rc = apply_target_gain_if_requested(args, res, warn)
-        if apply_rc != 0:
-            # Print report including error note
-            print_report(res, warn, args)
-            return apply_rc
+    if args.json:
+        emit_json(res, warn, args)
+        return 0
 
     print_report(res, warn, args)
     return 0

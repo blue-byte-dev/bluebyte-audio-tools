@@ -3,10 +3,16 @@
 ![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Active-green.svg)
 
-A growing collection of Python‑based audio utilities for loading, analyzing, normalizing, scanning, and batch‑processing sound files.  
-Designed for audio engineers, music producers, sound designers, game developers, and machine‑learning dataset creators.
+A growing collection of Python-based audio utilities for loading, analysing, normalising, scanning, and batch‑processing sound files.
 
-This repository evolves weekly as part of a structured 12‑week development plan.
+Designed for audio engineers, music producers, sound designers, game developers, and dataset creators.
+
+The project follows a clear separation of concerns:
+- **Core backend engine** (shared logic)
+- **Read‑only analysis tools**
+- **Explicit, safe rendering tools**
+
+FFmpeg is treated as the **reference loudness engine** where loudness measurement is involved.
 
 ---
 
@@ -39,7 +45,9 @@ This ensures the project is safe to refactor, extend, and maintain over time.
 
 ---
 
-# 📂 Tools Included
+## 📦 Tools Overview
+
+BlueByte Audio Tools is intentionally modular. Each script does one job well and relies on a shared backend (`bb_audio.py`) to ensure consistent behavior across the entire toolchain.
 
 ---
 
@@ -57,6 +65,8 @@ A reusable internal module that powers all BlueByte Audio Tools.
 - Provides a single safe-save path via `save_audio()` (consistent error handling and messages)
 - Keeps file discovery consistent across tools via `list_audio_files()` (same extension rules everywhere)
 - Reduces duplication across CLI tools (batch normalise, LUFS analysis, future tools)
+
+All user‑facing tools import this module to avoid duplicated logic and inconsistent behavior.
 
 ### **Public API (Functions)**
 The backend exposes a small, stable function surface:
@@ -312,27 +322,25 @@ python3 lufs_analyse.py your_audio.wav --target_lufs -14 --apply --force_apply
 
 ---
 
-# 📅 Roadmap (12‑Week Development Plan)
+## 📅 Roadmap
 
-- ✔ Audio loader (`load_audio.py`)  
-- ✔ Single‑file peak normalizer (`normalise_single.py`)  
-- ✔ Folder scanner (batch foundation) (`folder_scanner.py`)  
-- ✔ Batch normaliser v1 (`batch_normalise.py`)  
-- ✔ Shared backend engine refactor (`bb_audio.py`)
-- ✔ Batch format conversion (WAV ↔ FLAC)
-- ✔ Full unit test coverage for backend engine (`bb_audio.py`)
-- ✔ LUFS loudness analyzer with FFmpeg validation (`lufs_analyse.py`)
-- ✔ Target LUFS compliance + apply mode (`--target_lufs`, `--apply`, `--force_apply`)
-- 🔜 Noise‑reduction utility  
-- 🔜 Spectral analysis toolkit  
-- 🔜 Modular CLI pipeline interface  
-- 🔜 GUI desktop version (Tkinter or Electron‑Python)
-- ✔ Dry‑run mode (`--dry_run`)
-- ✔ Overwrite protection flag (`--overwrite`)
-- 🔜 Additional loudness‑based normalization (LUFS)
-- 🔜 Cross‑platform GUI frontend
+The project evolves incrementally with a focus on correctness, safety, and maintainability.
 
-This repository expands every week with new tools and improvements.
+Completed:
+- Core backend engine (`bb_audio.py`)
+- Audio loading and inspection utilities
+- Folder scanning and batch foundations
+- Peak normalisation (single and batch)
+- LUFS loudness analysis (FFmpeg‑validated)
+- LUFS normalisation with safe write semantics
+- Stable, versioned JSON schemas
+
+Planned:
+- Additional batch processing utilities
+- Noise reduction and cleanup tools
+- Spectral analysis helpers
+- Modular CLI pipelines
+- GUI frontend (long‑term)
 
 ---
 
